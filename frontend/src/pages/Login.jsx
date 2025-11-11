@@ -17,16 +17,16 @@ const Login = ({ setIsLoggedIn }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const response = await axios.post("http://localhost:5000/customers/login", loginData);
+      const response = await axios.post(`${import.meta.env.VITE_BACKEND_URL}/customers/login`, loginData);
       console.log("Login success:", response.data);
       setIsLoggedIn(true);
       localStorage.setItem("token", response.data.token);
       navigate("/");
-
     } catch (error) {
       console.error("Login error:", error.response?.data || error.message);
     }
   };
+
 
   return (
     <div className="min-h-screen bg-orange-50">

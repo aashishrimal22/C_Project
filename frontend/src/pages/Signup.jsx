@@ -24,7 +24,7 @@ const Signup = ({ setIsLoggedIn }) => {
 
     try {
       const response = await axios.post(
-        "http://localhost:5000/customers/register",
+        `${import.meta.env.VITE_BACKEND_URL}/customers/register`,
         formData
       );
 
@@ -40,6 +40,7 @@ const Signup = ({ setIsLoggedIn }) => {
         "Signup failed. Please check your input and try again."
       );
     }
+
   };
 
   return (
