@@ -29,10 +29,21 @@ const Order = () => {
       if (!token) return;
 
       try {
-        const res = await axios.get("http://localhost:5000/customers/profile", {
-          headers: { Authorization: `Bearer ${token}` }
+        const res = await axios.get("http://localhost:5000/customers/me", {
+          headers: { Authorization: `Bearer ${token}` },
         });
-        const customer = res.data.customer;
+
+        console.log("Fetched profile:", res.data);
+
+        const customer = res.data;
+        setCustomerInfo({
+          name: `${customer.firstname || ""} ${customer.lastname || ""}`,
+          phone: customer.phone || "",
+          email: customer.email || "",
+          address: "",
+          deliveryNotes: "",
+        });
+
         setCustomerInfo({
           name: customer.firstname + ' ' + customer.lastname,
           phone: customer.phone,
