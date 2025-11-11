@@ -31,9 +31,10 @@ const Order = () => {
       if (!token) return;
 
       try {
-        const res = await axios.get(`${backendUrl}/customers/me`, {
+        const res = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/customers/profile`, {
           headers: { Authorization: `Bearer ${token}` },
         });
+
 
         console.log("Fetched profile:", res.data);
         const customer = res.data;
