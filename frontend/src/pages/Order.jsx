@@ -82,7 +82,7 @@ const Order = () => {
 
       // ✅ eSewa redirect for online payment
       if (paymentMethod === "esewa") {
-        const payRes = await axios.post("http://localhost:5000/esewa/pay", {
+        const payRes = await axios.post("https://aashish-backend.onrender.com/esewa/pay", {
           orderId: res.data.order._id,
           total_amount: total,
           product_code: "EPAYTEST",
