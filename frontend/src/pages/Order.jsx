@@ -2,11 +2,9 @@ import React, { useState, useContext, useEffect } from 'react';
 import { CartContext } from '../context/CartContext';
 import axios from 'axios';
 
-// ✅ Replace this with your actual backend URL
-const backendUrl = "https://your-backend-host.onrender.com";
-
 const Order = () => {
   const { cart, getCartTotal } = useContext(CartContext);
+
 
   const [customerInfo, setCustomerInfo] = useState({
     name: '',
@@ -24,27 +22,23 @@ const Order = () => {
   const subtotal = getCartTotal();
   const total = subtotal + deliveryFee;
 
-  // ✅ Fetch logged-in customer profile
+  // Fetch logged-in customer profile
   useEffect(() => {
     const fetchProfile = async () => {
       const token = localStorage.getItem("token");
       if (!token) return;
 
       try {
-        const res = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/customers/profile`, {
-          headers: { Authorization: `Bearer ${token}` },
+        const res = await axios.get("https://aashish-backend.onrender.com/customers/profile", {
+          headers: { Authorization: `Bearer ${token}` }
         });
-
-
-        console.log("Fetched profile:", res.data);
-        const customer = res.data;
-
+        const customer = res.data.customer;
         setCustomerInfo({
-          name: `${customer.firstname || ""} ${customer.lastname || ""}`,
-          phone: customer.phone || "",
-          email: customer.email || "",
-          address: "",
-          deliveryNotes: "",
+          name: customer.firstname + ' ' + customer.lastname,
+          phone: customer.phone,
+          email: customer.email,
+          address: '',
+          deliveryNotes: ''
         });
       } catch (error) {
         console.error("Failed to load profile:", error);
@@ -68,8 +62,8 @@ const Order = () => {
 
     setLoading(true);
     try {
-      // ✅ Send order to backend first
-      const res = await axios.post(`${backendUrl}/orders/place`, {
+      // Send order to backend first
+      const res = await axios.post("https://aashish-backend.onrender.com/orders/place", {
         items: cart.map(item => ({
           foodid: item.foodid,
           name: item.name,
@@ -88,12 +82,12 @@ const Order = () => {
 
       // ✅ eSewa redirect for online payment
       if (paymentMethod === "esewa") {
-        const payRes = await axios.post(`${backendUrl}/esewa/pay`, {
+        const payRes = await axios.post("http://localhost:5000/esewa/pay", {
           orderId: res.data.order._id,
           total_amount: total,
           product_code: "EPAYTEST",
-          success_url: "https://aashish-frontend.vercel.app/payment-success",
-          failure_url: "https://aashish-frontend.vercel.app/payment-failed"
+          success_url: "http://localhost:5173/payment-success",
+          failure_url: "http://localhost:5173/payment-failed"
         });
         document.write(payRes.data);
         return;
@@ -103,7 +97,7 @@ const Order = () => {
       setOrderPlaced(true);
     } catch (error) {
       console.error("Order placement error:", error);
-      alert("Failed to place order. Please check backend connection or token.");
+      alert("Failed to place order.");
     } finally {
       setLoading(false);
     }
@@ -123,7 +117,7 @@ const Order = () => {
           <p className="text-red-600 mb-4 text-lg">Your authentic Newari feast is being prepared with love.</p>
           <div className="bg-gradient-to-r from-orange-50 to-red-50 p-4 rounded-xl mb-6 border-2 border-yellow-400">
             <p className="text-red-800 font-bold text-xl">Total: Rs. {total}</p>
-            <p className="text-sm text-red-700 mt-1">Estimated delivery: 30–45 minutes</p>
+            <p className="text-sm text-red-700 mt-1">Estimated delivery: 30-45 minutes</p>
           </div>
           <button
             onClick={() => window.location.href = '/'}
