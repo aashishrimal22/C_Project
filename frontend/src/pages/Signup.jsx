@@ -129,7 +129,7 @@ const Signup = ({ setIsLoggedIn }) => {
                   type="tel"
                   name="phone"
                   className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-red-500 focus:outline-none transition-colors duration-300"
-                  placeholder="+977-XXX-XXXXXX"
+                  placeholder="9XX-XXXXXX"
                   value={formData.phone}
                   onChange={handleChange}
                   required
