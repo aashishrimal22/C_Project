@@ -5,11 +5,7 @@ const Order = require("../models/order.model"); // adjust path if needed
 exports.loginAdmin = (req, res) => {
     const { username, password } = req.body;
 
-    // Hardcoded login (no DB)
-    if (username === "admin" && password === "admin123") {
-        const token = jwt.sign({ username: "admin" }, "secretkey", { expiresIn: "1h" });
-        return res.json({ token });
-    }
+
 
     return res.status(401).json({ message: "Invalid credentials" });
 };
