@@ -49,7 +49,7 @@ const About = () => {
             
             <div className="relative">
               <img
-                src="https://assets.simplotel.com/simplotel/image/upload/w_5000,h_3333/x_0,y_0,w_5000,h_2812,r_0,c_crop/q_80,w_900,dpr_1,f_auto,fl_progressive,c_limit/the-nanee-bhaktapur-nepal/Traditional_newari_Platter__11034f62"
+                src="https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=900&h=600&fit=crop"
                 alt="Traditional Newari cooking"
                 className="rounded-2xl shadow-2xl w-full"
               />
