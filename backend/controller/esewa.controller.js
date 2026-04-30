@@ -2,59 +2,89 @@ const crypto     = require('crypto');
 const axios      = require('axios');
 const orderModel = require('../models/order.model');
 
-const ESEWA_SECRET       = process.env.ESEWA_SECRET       || '8gBm/:&EnhH.1/q';
+// eSewa test credentials (from official docs)
+const ESEWA_SECRET       = process.env.ESEWA_SECRET      || '8gBm/:&EnhH.1/q';
 const ESEWA_PRODUCT_CODE = process.env.ESEWA_PRODUCT_CODE || 'EPAYTEST';
-const ESEWA_PAYMENT_URL  = 'https://rc-epay.esewa.com.np/api/epay/main/v2/form';
-const ESEWA_STATUS_URL   = 'https://rc.esewa.com.np/api/epay/transaction/status/';
 
-// Fallback frontend URL only used if something goes wrong before frontend_url is received
-const DEFAULT_FRONTEND   = process.env.FRONTEND_URL || 'https://aashish-frontend.vercel.app';
+// Official test URL from eSewa developer docs
+const ESEWA_PAYMENT_URL   = 'https://rc-epay.esewa.com.np/api/epay/main/v2/form';
+// Status-check API (to confirm payment even if success_url callback is missed)
+const ESEWA_STATUS_URL    = 'https://rc.esewa.com.np/api/epay/transaction/status/';
 
-function hmac(message) {
-  return crypto.createHmac('sha256', ESEWA_SECRET).update(message).digest('base64');
+// ──────────────────────────────────────────────────────────────────────────
+// Helpers
+// ──────────────────────────────────────────────────────────────────────────
+
+function hmacBase64(message) {
+  return crypto.createHmac('sha256', ESEWA_SECRET)
+               .update(message)
+               .digest('base64');
 }
-function responseMessage(decoded) {
-  return decoded.signed_field_names.split(',').map(f => `${f}=${decoded[f]}`).join(',');
+
+// Build a short, date-based transaction UUID matching eSewa's own example format
+// e.g.  "250430-142536"  (13 chars, alphanumeric + hyphen only)
+// A 3-char suffix from the OrderId makes it unique even within the same second.
+function makeTransactionUuid(orderId) {
+  const now = new Date();
+  const p   = n => n.toString().padStart(2, '0');
+  const date = `${now.getFullYear().toString().slice(-2)}${p(now.getMonth()+1)}${p(now.getDate())}`;
+  const time = `${p(now.getHours())}${p(now.getMinutes())}${p(now.getSeconds())}`;
+  const suffix = orderId.toString().slice(-3); // last 3 hex chars of ObjectId
+  return `${date}-${time}-${suffix}`;          // "250430-142536-a2f"
 }
 
-// ─── POST /esewa/pay ──────────────────────────────────────────────────────────
+// Build the HMAC message string from a decoded eSewa response.
+// The response's own signed_field_names tells us which fields to include, in order.
+function buildResponseMessage(decoded) {
+  return decoded.signed_field_names
+    .split(',')
+    .map(field => `${field}=${decoded[field]}`)
+    .join(',');
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// POST /esewa/pay
+// Returns JSON with all form fields + the payment URL so the frontend can
+// build and submit a real <form> — avoids document.write() which breaks React.
+// ──────────────────────────────────────────────────────────────────────────
 module.exports.esewaPay = async (req, res) => {
   try {
-    const {
-      orderId,
-      total_amount,
-      product_code  = ESEWA_PRODUCT_CODE,
-      success_url,      // passed from frontend — no env var dependency
-      failure_url,      // passed from frontend — no env var dependency
-      frontend_url,     // used by esewaSuccess to redirect back
-    } = req.body;
+    const { orderId, total_amount, amount, delivery_charge = 0,
+            product_code = ESEWA_PRODUCT_CODE, success_url, failure_url } = req.body;
 
     if (!orderId || !total_amount) {
       return res.status(400).json({ message: 'orderId and total_amount are required' });
     }
 
-    const transaction_uuid = orderId.toString();
-    const signature = hmac(
-      `total_amount=${total_amount},transaction_uuid=${transaction_uuid},product_code=${product_code}`
-    );
+    // Use short date-based UUID matching eSewa's own example format
+    const transaction_uuid = makeTransactionUuid(orderId);
+
+    // Save the UUID to the order so we can look it up during verification
+    await orderModel.findByIdAndUpdate(orderId, { transactionUuid: transaction_uuid });
+
+    // Signature covers: total_amount, transaction_uuid, product_code (in this order)
+    const sigMessage = `total_amount=${total_amount},transaction_uuid=${transaction_uuid},product_code=${product_code}`;
+    const signature  = hmacBase64(sigMessage);
+
+    // Proper amount breakdown per eSewa docs:
+    // total_amount = amount + tax_amount + product_service_charge + product_delivery_charge
+    const base_amount = amount || (total_amount - delivery_charge);
 
     return res.json({
       paymentUrl: ESEWA_PAYMENT_URL,
       formData: {
-        amount:                   total_amount,
+        amount:                   base_amount,
         tax_amount:               0,
         product_service_charge:   0,
-        product_delivery_charge:  0,
+        product_delivery_charge:  delivery_charge,
         total_amount:             total_amount,
         transaction_uuid:         transaction_uuid,
         product_code:             product_code,
-        // eSewa will redirect to these exact URLs — we pass them directly from the frontend
         success_url:              success_url,
         failure_url:              failure_url,
         signed_field_names:       'total_amount,transaction_uuid,product_code',
         signature:                signature,
-      },
-      frontend_url, // echoed back so the success handler can redirect correctly
+      }
     });
   } catch (e) {
     console.error('esewaPay error:', e);
@@ -62,107 +92,88 @@ module.exports.esewaPay = async (req, res) => {
   }
 };
 
-// ─── GET /esewa/success ───────────────────────────────────────────────────────
-// eSewa → backend → verifies payment → updates DB → redirects browser to frontend
-module.exports.esewaSuccess = async (req, res) => {
-  // frontend_url is stored in the query string we added when building the success_url
-  // OR fall back to the env var / hardcoded default
-  const frontendUrl = req.query.frontend_url || DEFAULT_FRONTEND;
-
+// ──────────────────────────────────────────────────────────────────────────
+// POST /esewa/verify
+// Frontend calls this with the raw base64 `data` param eSewa attached to success_url.
+// 1. Decodes and verifies HMAC signature (using signed_field_names from the RESPONSE)
+// 2. Cross-checks with eSewa Status Check API as a fallback safety net
+// 3. Updates order paymentStatus to 'completed'
+// ──────────────────────────────────────────────────────────────────────────
+module.exports.esewaVerify = async (req, res) => {
   try {
-    const { data } = req.query;
-    if (!data) {
-      console.error('esewaSuccess: missing data param');
-      return res.redirect(`${frontendUrl}/payment-failed`);
-    }
+    const { data } = req.body;
+    if (!data) return res.status(400).json({ message: 'Missing data param from eSewa' });
 
+    // 1 — Decode
     let decoded;
     try {
       decoded = JSON.parse(Buffer.from(data, 'base64').toString('utf-8'));
     } catch {
-      console.error('esewaSuccess: bad base64');
-      return res.redirect(`${frontendUrl}/payment-failed`);
+      return res.status(400).json({ message: 'Invalid base64 data from eSewa' });
     }
 
-    console.log('eSewa success callback:', decoded);
+    const { transaction_code, status, total_amount, transaction_uuid,
+            product_code, signature: receivedSig } = decoded;
 
-    // Verify HMAC
-    const expectedSig = hmac(responseMessage(decoded));
-    if (expectedSig !== decoded.signature) {
-      console.error('esewaSuccess: signature mismatch');
-      return res.redirect(`${frontendUrl}/payment-failed`);
+    // 2 — Verify signature (response uses its own signed_field_names set)
+    const expectedSig = hmacBase64(buildResponseMessage(decoded));
+    if (expectedSig !== receivedSig) {
+      return res.status(400).json({ message: 'Signature mismatch — possible tampering' });
     }
 
-    // Cross-check with status API
-    let confirmedStatus = decoded.status;
+    // 3 — Cross-check with eSewa Status API (safety net)
+    let confirmedStatus = status;
     try {
-      const sr = await axios.get(ESEWA_STATUS_URL, {
-        params: { product_code: ESEWA_PRODUCT_CODE, total_amount: decoded.total_amount, transaction_uuid: decoded.transaction_uuid },
+      const statusRes = await axios.get(ESEWA_STATUS_URL, {
+        params: { product_code, total_amount, transaction_uuid },
         timeout: 5000,
       });
-      confirmedStatus = sr.data?.status || decoded.status;
-      console.log('eSewa status check result:', sr.data);
+      confirmedStatus = statusRes.data?.status || status;
     } catch (e) {
-      console.warn('Status API unavailable:', e.message);
+      console.warn('eSewa status check failed (using response status):', e.message);
     }
 
     if (confirmedStatus !== 'COMPLETE') {
-      console.error('esewaSuccess: not COMPLETE, status =', confirmedStatus);
-      return res.redirect(`${frontendUrl}/payment-failed`);
+      return res.status(400).json({ message: `Payment not complete. Status: ${confirmedStatus}` });
     }
 
-    // Update order
-    await orderModel.findByIdAndUpdate(decoded.transaction_uuid, { paymentStatus: 'completed' });
-
-    return res.redirect(`${frontendUrl}/payment-success?data=${encodeURIComponent(data)}`);
-  } catch (err) {
-    console.error('esewaSuccess error:', err);
-    return res.redirect(`${frontendUrl}/payment-failed`);
-  }
-};
-
-// ─── GET /esewa/fail ──────────────────────────────────────────────────────────
-// NOTE: In v5 the failure_url points DIRECTLY to the frontend, so this route
-// is only hit if someone navigates here manually. Kept for safety.
-module.exports.esewaFail = async (req, res) => {
-  const frontendUrl = req.query.frontend_url || DEFAULT_FRONTEND;
-  const { transaction_uuid } = req.query;
-  console.log('esewaFail called. transaction_uuid:', transaction_uuid);
-  if (transaction_uuid) {
-    await orderModel.findByIdAndUpdate(transaction_uuid, { paymentStatus: 'failed' }).catch(() => {});
-  }
-  return res.redirect(`${frontendUrl}/payment-failed`);
-};
-
-// ─── POST /esewa/verify ───────────────────────────────────────────────────────
-module.exports.esewaVerify = async (req, res) => {
-  try {
-    const { data } = req.body;
-    if (!data) return res.status(400).json({ message: 'Missing data param' });
-
-    let decoded;
-    try { decoded = JSON.parse(Buffer.from(data, 'base64').toString('utf-8')); }
-    catch { return res.status(400).json({ message: 'Invalid base64 data' }); }
-
-    const expectedSig = hmac(responseMessage(decoded));
-    if (expectedSig !== decoded.signature) {
-      return res.status(400).json({ message: 'Signature mismatch' });
-    }
-    if (decoded.status !== 'COMPLETE') {
-      return res.status(400).json({ message: `Payment status: ${decoded.status}` });
-    }
-
-    const order = await orderModel.findByIdAndUpdate(
-      decoded.transaction_uuid,
+    // 4 — Find order by transactionUuid and mark as paid
+    const order = await orderModel.findOneAndUpdate(
+      { transactionUuid: transaction_uuid },
       { paymentStatus: 'completed' },
       { new: true }
     );
 
-    return res.json({
-      message: 'Payment verified',
-      order: order ? { _id: order._id, paymentStatus: order.paymentStatus } : null
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found for transaction: ' + transaction_uuid });
+    }
+
+    return res.status(200).json({
+      message: 'Payment verified successfully',
+      transactionCode: transaction_code,
+      order: { _id: order._id, totalAmount: order.totalAmount, paymentStatus: order.paymentStatus },
     });
   } catch (err) {
-    return res.status(500).json({ message: err.message });
+    console.error('esewaVerify error:', err);
+    return res.status(500).json({ message: 'Server error', error: err.message });
   }
+};
+
+// GET /esewa/success  — eSewa backend redirect handler (legacy)
+module.exports.esewaSuccess = async (req, res) => {
+  const { data } = req.query;
+  if (data) return res.redirect(`${process.env.FRONTEND_URL}/payment-success?data=${data}`);
+  return res.redirect(`${process.env.FRONTEND_URL}/payment-success`);
+};
+
+// GET /esewa/fail — eSewa backend redirect handler (legacy)
+module.exports.esewaFail = async (req, res) => {
+  const { transaction_uuid } = req.query;
+  if (transaction_uuid) {
+    await orderModel.findOneAndUpdate(
+      { transactionUuid: transaction_uuid },
+      { paymentStatus: 'failed' }
+    ).catch(() => {});
+  }
+  return res.redirect(`${process.env.FRONTEND_URL}/payment-failed`);
 };

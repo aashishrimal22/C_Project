@@ -18,6 +18,10 @@ const orderSchema = new mongoose.Schema({
         enum: ['cash', 'esewa'],
         required: true 
     },
+    transactionUuid: {
+        type: String,
+        default: null   // populated when eSewa payment is initiated
+    },
     paymentStatus: { 
         type: String, 
         enum: ['pending', 'completed', 'failed'], 

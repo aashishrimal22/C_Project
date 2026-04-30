@@ -95,14 +95,13 @@ const Order = () => {
       // 2 — eSewa: get signed params from backend, then submit real form
       if (paymentMethod === 'esewa') {
         const esewaRes = await axios.post(`${BACKEND}/esewa/pay`, {
-          orderId:      createdOrder._id,
-          total_amount: total,
-          product_code: 'EPAYTEST',
-          // success → backend (verifies + updates DB, then redirects to frontend)
-          // failure → frontend directly (no env var dependency on Render)
-          success_url:  `${BACKEND}/esewa/success?frontend_url=${encodeURIComponent(window.location.origin)}`,
-          failure_url:  `${window.location.origin}/payment-failed`,
-          frontend_url: window.location.origin,
+          orderId:          createdOrder._id,
+          total_amount:     total,
+          amount:           subtotal,     // base item cost
+          delivery_charge:  deliveryFee,  // sent as product_delivery_charge
+          product_code:     'EPAYTEST',
+          success_url:      `${window.location.origin}/payment-success`,
+          failure_url:      `${window.location.origin}/payment-failed`,
         }, { headers });
 
         submitEsewaForm(esewaRes.data.paymentUrl, esewaRes.data.formData);
