@@ -178,7 +178,7 @@ const Home = () => {
             
             <div className="relative">
               <img
-                src="https://images.unsplash.com/photo-1567337710282-00832b415979?w=800&h=600&fit=crop"
+                src="https://media.restroverse.app/restrobizz/MEDIALIBRARYIMG/99e89dcb-763c-3662-a1e8-23547dc84861."
                 alt="Traditional Newari cooking"
                 className="rounded-2xl shadow-2xl w-full"
               />

@@ -43,7 +43,7 @@ const Footer = ({ footerRef }) => {
       <div className="h-4 bg-gradient-to-r from-red-600 via-orange-500 to-yellow-500"></div>
       <footer className="bg-red-800 text-orange-400 py-8">
         <div className="max-w-7xl mx-auto px-6 text-center">
-          <p>&copy; 2025 Newa Baji Restaurant. सबै अधिकार सुरक्षित। Preserving tradition, one meal at a time.</p>
+          <p>&copy; {new Date().getFullYear()} Newa Baji Restaurant. सबै अधिकार सुरक्षित। Preserving tradition, one meal at a time.</p>
         </div>
       </footer></div>
   )
