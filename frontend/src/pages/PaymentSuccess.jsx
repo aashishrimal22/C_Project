@@ -12,25 +12,33 @@ const PaymentSuccess = () => {
     const verify = async () => {
       const data = new URLSearchParams(window.location.search).get('data');
 
-      if (!data) { setStatus('success'); return; }
+      if (!data) { setStatus('success'); clearCartFromStorage(); return; }
 
       try {
         const decoded = JSON.parse(atob(data));
         setFinalAmount(decoded?.total_amount);
-      } catch { /* non-fatal — backend will validate */ }
+      } catch { /* non-fatal */ }
 
       try {
         const token = localStorage.getItem('token');
         await axios.post(`${BACKEND}/esewa/verify`, { data },
           { headers: { Authorization: `Bearer ${token}` } });
+        // Payment confirmed — now safe to clear the cart
+        clearCartFromStorage();
         setStatus('success');
       } catch (err) {
         setStatus('error');
         setErrorMsg(err.response?.data?.message || 'Payment verification failed. Please contact support.');
       }
     };
+
     verify();
   }, []);
+
+  // Clear cart from localStorage directly (no React context needed here)
+  const clearCartFromStorage = () => {
+    localStorage.removeItem('cart');
+  };
 
   if (status === 'verifying') return (
     <div className="min-h-screen bg-gradient-to-br from-red-50 to-orange-100 flex items-center justify-center p-4">

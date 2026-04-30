@@ -5,7 +5,7 @@ import axios from 'axios';
 const BACKEND = import.meta.env.VITE_BACKEND_URL;
 
 const Order = () => {
-  const { cart, getCartTotal } = useContext(CartContext);
+  const { cart, getCartTotal, clearCart } = useContext(CartContext);
 
   const [customerInfo, setCustomerInfo] = useState({
     name: '', phone: '', email: '', address: '', deliveryNotes: '',
@@ -108,7 +108,8 @@ const Order = () => {
         return; // browser is navigating away
       }
 
-      // 3 — Cash on delivery: show success screen
+      // 3 — Cash on delivery: clear cart and show success screen
+      clearCart();
       setOrderPlaced(true);
     } catch (error) {
       console.error('Order error:', error);
