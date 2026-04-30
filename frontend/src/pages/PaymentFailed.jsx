@@ -11,31 +11,10 @@ const PaymentFailed = () => (
 
       <div className="text-red-500 text-lg mb-2 font-bold">भुक्तानी असफल • Payment Failed</div>
       <h1 className="text-3xl font-bold text-red-800 mb-3">Payment Was Not Completed</h1>
-      <p className="text-red-600 mb-4 text-lg">
+      <p className="text-red-600 mb-6 text-lg">
         Your eSewa payment was cancelled or failed.<br />
         You have <span className="font-bold">not</span> been charged.
       </p>
-
-      {/* Test credentials reminder */}
-      <div className="bg-yellow-50 border-2 border-yellow-300 rounded-xl p-4 mb-4 text-left">
-        <p className="text-sm font-bold text-yellow-800 mb-2">🧪 Using eSewa Test Environment?</p>
-        <p className="text-xs text-yellow-700 mb-1">Use these test credentials only:</p>
-        <ul className="text-xs text-yellow-800 font-mono space-y-0.5">
-          <li>eSewa ID: <strong>9806800001</strong></li>
-          <li>Password: <strong>Nepal@123</strong></li>
-          <li>Token: <strong>123456</strong></li>
-        </ul>
-      </div>
-
-      <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4 mb-6 text-left">
-        <p className="text-sm font-semibold text-red-700 mb-2">Common reasons:</p>
-        <ul className="text-sm text-red-600 list-disc list-inside space-y-1">
-          <li>Wrong eSewa ID or password</li>
-          <li>Wrong token (use 123456 for test)</li>
-          <li>Insufficient test account balance</li>
-          <li>Session timed out (5 min limit)</li>
-        </ul>
-      </div>
 
       <div className="space-y-3">
         <button onClick={() => window.location.href = '/order'}
