@@ -14,7 +14,6 @@ import { ScrollToPlugin } from 'gsap/ScrollToPlugin';
 import Admin from './pages/Admin'
 import Adminlogin from './pages/Adminlogin'
 import PaymentSuccess from "./pages/PaymentSuccess";
-import PaymentFailed from "./pages/PaymentFailed";
 
 const App = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(
@@ -47,7 +46,6 @@ const App = () => {
             <Route path="/login" element={<Login setIsLoggedIn={setIsLoggedIn} />} />
             <Route path='/signup' element={<Signup setIsLoggedIn={setIsLoggedIn} />} />
             <Route path="/payment-success" element={<PaymentSuccess />} />
-            <Route path="/payment-failed"  element={<PaymentFailed />} />
 
           </Routes>
         </CartProvider>
